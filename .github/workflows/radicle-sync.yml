@@ -32,6 +32,14 @@ jobs:
         run: |
           export PATH="$HOME/.radicle/bin:$PATH"
           rm -rf radicle-source
+          rad node start
+          for i in {1..30}; do
+            if rad node status >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          rad node status
           rad clone rad:z2BWVCwcwTyoQ2veMJLb1eFpMtJDj radicle-source
           test -d radicle-source
           test -d radicle-source/.git
