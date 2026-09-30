@@ -100,7 +100,7 @@ jobs:
 
           if [ -f "$GITHUB_WORKSPACE/Input/client.jar" ]; then
             mkdir -p "$mirror_backup/Input"
-            cp "$GITHUB_WORKSPACE/Input/client.jar"               "$mirror_backup/Input/client.jar"
+            cp "$GITHUB_WORKSPACE/Input/client.jar" "$mirror_backup/Input/client.jar"
           fi
 
           rm -rf "$GITHUB_WORKSPACE/.github" "$GITHUB_WORKSPACE/Input"
@@ -111,11 +111,13 @@ jobs:
 
           cp "$mirror_backup/.github/workflows/radicle-sync.yml"             "$GITHUB_WORKSPACE/.github/workflows/radicle-sync.yml"
 
-          cp "$mirror_backup/Input/client.jar"             "$GITHUB_WORKSPACE/Input/client.jar"
-
-          test -s "$GITHUB_WORKSPACE/Input/client.jar"
-          echo "Preserved client.jar:"
-          sha256sum "$GITHUB_WORKSPACE/Input/client.jar"
+          if [ -f "$mirror_backup/Input/client.jar" ]; then
+            cp "$mirror_backup/Input/client.jar" "$GITHUB_WORKSPACE/Input/client.jar"
+            echo "Preserved existing client.jar:"
+            sha256sum "$GITHUB_WORKSPACE/Input/client.jar"
+          else
+            echo "No existing client.jar to preserve; it will be downloaded in the next step."
+          fi
 
       - name: Commit and push main
         run: |
