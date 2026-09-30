@@ -20,14 +20,16 @@ jobs:
         run: |
           curl -sSLf https://radicle.xyz/install | sh
           echo "$HOME/.radicle/bin" >> "$GITHUB_PATH"
+          rad --version
 
       - name: Clone Radicle repository
         env:
-          RADICLE_URL: rad://radicle.jarg.io/z2BWVCwcwTyoQ2veMJLb1eFpMtJDj
+          RADICLE_RID: rad:z2BWVCwcwTyoQ2veMJLb1eFpMtJDj
         run: |
           rm -rf radicle-source
-          rad clone "$RADICLE_URL" radicle-source
+          rad clone "$RADICLE_RID" radicle-source
           test -d radicle-source
+          test -d radicle-source/.git
 
       - name: Check out GitHub repository
         uses: actions/checkout@v4
@@ -36,10 +38,7 @@ jobs:
 
       - name: Mirror Radicle working tree
         run: |
-          rsync -a --delete \
-            --exclude='.git/' \
-            --exclude='.github/workflows/radicle-sync.yml' \
-            radicle-source/ ./
+          rsync -a --delete             --exclude='.git/'             --exclude='.github/workflows/radicle-sync.yml'             radicle-source/ ./
 
       - name: Commit and push changes
         run: |
