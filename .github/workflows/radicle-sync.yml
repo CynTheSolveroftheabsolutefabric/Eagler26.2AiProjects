@@ -40,7 +40,9 @@ jobs:
             sleep 1
           done
           rad node status
-          rad clone rad:z2BWVCwcwTyoQ2veMJLb1eFpMtJDj radicle-source
+          # Let Radicle use its configured/default discovery instead of pinning a seed.
+          rad clone rad:z2BWVCwcwTyoQ2veMJLb1eFpMtJDj
+          mv z2BWVCwcwTyoQ2veMJLb1eFpMtJDj radicle-source
           test -d radicle-source
           test -d radicle-source/.git
 
