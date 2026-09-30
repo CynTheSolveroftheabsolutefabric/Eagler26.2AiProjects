@@ -40,7 +40,7 @@ jobs:
             sleep 1
           done
           rad node status
-          rad clone rad:z2BWVCwcwTyoQ2veMJLb1eFpMtJDj radicle-source
+          rad clone rad:z2BWVCwcwTyoQ2veMJLb1eFpMtJDj radicle-source --seed z6MkwfrBy9mKTfcVELcV4wc6zfN379FPMnAqsxnwt4j2TdQ2
           test -d radicle-source
           test -d radicle-source/.git
 
