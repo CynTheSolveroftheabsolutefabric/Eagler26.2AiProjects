@@ -85,7 +85,14 @@ jobs:
 
       - name: Mirror Radicle working tree
         run: |
-          rsync -a --delete             --exclude='.git/'             --exclude='.github/workflows/radicle-sync.yml'             "$RUNNER_TEMP/radicle-source/" ./
+          # GitHub-only inputs are deliberately preserved because Radicle does
+          # not contain them. In particular, client.jar is the user-supplied
+          # official 26.2 input required by the patcher.
+          rsync -a --delete             --exclude='.git/'             --exclude='.github/workflows/radicle-sync.yml'             --exclude='Input/client.jar'             "$RUNNER_TEMP/radicle-source/" ./
+
+          test -s "$GITHUB_WORKSPACE/Input/client.jar"
+          echo "Preserved client.jar:"
+          sha256sum "$GITHUB_WORKSPACE/Input/client.jar"
 
       - name: Commit and push main
         run: |
@@ -102,47 +109,80 @@ jobs:
           fi
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Download Vineflower 1.12.0
+      - name: Install the complete patcher kit
         run: |
-          mkdir -p "$RUNNER_TEMP/tools"
-          curl -fL             -o "$RUNNER_TEMP/tools/vineflower-1.12.0.jar"             "https://repo1.maven.org/maven2/org/vineflower/vineflower/1.12.0/vineflower-1.12.0.jar"
-          test -s "$RUNNER_TEMP/tools/vineflower-1.12.0.jar"
-          sha256sum "$RUNNER_TEMP/tools/vineflower-1.12.0.jar"
+          rm -rf "$RUNNER_TEMP/eaglercraft-patcher"
+          curl -fL             -o "$RUNNER_TEMP/eaglercraft-26.2-u1-Setup.jar"             "https://eaglercraft-26-2-u1-cdn.u2471966200.workers.dev/Eaglercraft-26.2-u1-Setup.jar"
+          test -s "$RUNNER_TEMP/eaglercraft-26.2-u1-Setup.jar"
 
-      - name: Decompile client JAR
+          java -jar "$RUNNER_TEMP/eaglercraft-26.2-u1-Setup.jar"             --install-dir "$RUNNER_TEMP/eaglercraft-patcher"
+
+          test -s "$RUNNER_TEMP/eaglercraft-patcher/eaglercraft-26.2-java-cli.jar"
+          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/vineflower-1.12.0.jar"
+          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip"
+          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip"
+          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/resource-overlay-normal.zip"
+          test -d "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources"
+
+      - name: Verify client input
         run: |
-          rm -rf "$RUNNER_TEMP/generated-source"
-          mkdir -p "$RUNNER_TEMP/generated-source"
+          expected_size=39193383
+          expected_sha256=40896ee9f1e2bec3c934daac7e93d41e9e3d9c2f8ae0ca366d52ffbfd1afa290
 
-          java -Xmx8g -jar "$RUNNER_TEMP/tools/vineflower-1.12.0.jar"             --log-level=warn             -dgs=1             -rsy=1             "$GITHUB_WORKSPACE/Input/client.jar"             "$RUNNER_TEMP/generated-source"
+          actual_size="$(stat -c '%s' "$GITHUB_WORKSPACE/Input/client.jar")"
+          actual_sha256="$(sha256sum "$GITHUB_WORKSPACE/Input/client.jar" | cut -d ' ' -f 1)"
 
-          test -d "$RUNNER_TEMP/generated-source"
-          java_files="$(find "$RUNNER_TEMP/generated-source" -type f -name '*.java' | wc -l)"
+          echo "client.jar size:   $actual_size"
+          echo "client.jar sha256: $actual_sha256"
+
+          test "$actual_size" = "$expected_size"
+          test "$actual_sha256" = "$expected_sha256"
+
+      - name: Create complete Eaglercraft source project
+        run: |
+          rm -rf "$RUNNER_TEMP/generated-project"
+
+          java -jar "$RUNNER_TEMP/eaglercraft-patcher/eaglercraft-26.2-java-cli.jar"             create-dev             --jar "$GITHUB_WORKSPACE/Input/client.jar"             --output "$RUNNER_TEMP/generated-project"             --vineflower "$RUNNER_TEMP/eaglercraft-patcher/inputs/vineflower-1.12.0.jar"             --java17 "$JAVA_HOME/bin/java"             --patch-bundle "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip"             --expected-bundle-sha256 fd944e9cabbebbf4bddce8a39e1b233b3c7d0cd4f860f9cae37550a3fcfa8b02             --project-skeleton "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip"             --expected-skeleton-sha256 3656a83ed8187e2d859612c566f3aa73e242bf1e4633990c5bb4929e0a846c94             --resource-overlay "$RUNNER_TEMP/eaglercraft-patcher/inputs/resource-overlay-normal.zip"             --expected-resource-overlay-sha256 2ba7e3376891c64f8bf57f3687e05b8dbe1971a75475b6825449e5e5f96d71f3             --external-resource-root "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources"
+
+          test -s "$RUNNER_TEMP/generated-project/receipt.json"
+          test -d "$RUNNER_TEMP/generated-project/game/src/main/java"
+          test -d "$RUNNER_TEMP/generated-project/platform"
+          test -d "$RUNNER_TEMP/generated-project/target_teavm_wasm_gc"
+
+          java_files="$(find "$RUNNER_TEMP/generated-project" -type f -name '*.java' | wc -l)"
           echo "Generated Java files: $java_files"
-          test "$java_files" -gt 0
+          test "$java_files" -ge 7000
 
-      - name: Publish generated source to src branch
+          echo "Generated project size:"
+          du -sh "$RUNNER_TEMP/generated-project"
+
+      - name: Publish complete source project to src branch
         run: |
           git fetch origin main src || true
-
-          # Always rebuild src from the newest synchronized main commit.
           git checkout -B src origin/main
 
-          rm -rf generated-source
-          mkdir -p generated-source
-          rsync -a "$RUNNER_TEMP/generated-source/" generated-source/
+          # src is a generated-project branch, not a copy of the Radicle
+          # source checkout. Remove the main-branch files before publishing
+          # the patcher's complete generated workspace at the branch root.
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf -- {} +
 
-          git add -A generated-source
+          rsync -a --delete             --exclude='.git/'             "$RUNNER_TEMP/generated-project/" ./
+
+          test -s receipt.json
+          test -d game/src/main/java
+          test -d platform
+
+          git add -A
 
           if git diff --cached --quiet; then
-            echo "Generated source is already synchronized on src."
+            echo "Generated source project is already synchronized on src."
             exit 0
           fi
 
-          git commit -m "Generate Minecraft 26.2 source"
+          git commit -m "Generate Eaglercraft 26.2 source project"
           git push --force-with-lease origin HEAD:src
