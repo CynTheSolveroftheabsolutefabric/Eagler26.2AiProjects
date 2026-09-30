@@ -33,16 +33,44 @@ jobs:
           export PATH="$HOME/.radicle/bin:$PATH"
           rm -rf radicle-source
           rad node start
+
+          echo "Waiting for the Radicle node to come online..."
           for i in {1..30}; do
             if rad node status >/dev/null 2>&1; then
               break
             fi
             sleep 1
           done
+
           rad node status
-          # Let Radicle use its configured/default discovery instead of pinning a seed.
-          rad clone rad:z2BWVCwcwTyoQ2veMJLb1eFpMtJDj
-          mv z2BWVCwcwTyoQ2veMJLb1eFpMtJDj radicle-source
+
+          echo "Waiting for Radicle seed discovery..."
+          for attempt in {1..12}; do
+            echo "Clone attempt $attempt/12"
+
+            # Keep the clone command unqualified so Radicle discovers the repository
+            # from its connected/default seeds.
+            if rad clone rad:z2BWVCwcwTyoQ2veMJLb1eFpMtJDj; then
+              break
+            fi
+
+            if [ "$attempt" -eq 12 ]; then
+              echo "Radicle repository could not be discovered after 12 attempts."
+              rad node status || true
+              rad node logs --tail 100 || true
+              exit 1
+            fi
+
+            echo "No usable seed yet; waiting 5 seconds before retrying..."
+            find . -mindepth 1 -maxdepth 1 -type d ! -name .git ! -name .github -exec rm -rf {} +
+            sleep 5
+          done
+
+          # rad clone chooses the checkout directory from the repository name.
+          # Locate that checkout instead of guessing its directory name.
+          source_dir="$(find . -mindepth 2 -maxdepth 2 -type d -name .git -print -quit | sed 's#/.git$##')"
+          test -n "$source_dir"
+          mv "$source_dir" radicle-source
           test -d radicle-source
           test -d radicle-source/.git
 
@@ -53,10 +81,7 @@ jobs:
 
       - name: Mirror Radicle working tree
         run: |
-          rsync -a --delete \
-            --exclude='.git/' \
-            --exclude='.github/workflows/radicle-sync.yml' \
-            radicle-source/ ./
+          rsync -a --delete             --exclude='.git/'             --exclude='.github/workflows/radicle-sync.yml'             radicle-source/ ./
 
       - name: Commit and push changes
         run: |
