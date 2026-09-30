@@ -187,17 +187,42 @@ jobs:
 
           java -jar "$RUNNER_TEMP/eaglercraft-26.2-u1-Setup.jar"             --install-dir "$RUNNER_TEMP/eaglercraft-patcher"
 
-          # Setup intentionally keeps the source-patch bundle and project
-          # skeleton internal to the portable kit. The CLI locates those
-          # pinned inputs from its installation directory; they are not
-          # exposed as standalone ZIP files under inputs/.
           test -s "$RUNNER_TEMP/eaglercraft-patcher/eaglercraft-26.2-java-cli.jar"
           test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/vineflower-1.12.0.jar"
           test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/resource-overlay-normal.zip"
           test -d "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources"
 
-          echo "Verified patcher CLI and public inputs."
-          echo "Internal patch bundle and project skeleton are managed automatically by the patcher."
+          # The CLI requires the pinned source patch bundle and project
+          # skeleton explicitly. Some Setup JAR revisions keep these files
+          # inside the installer instead of copying them into inputs/.
+          if [ ! -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip" ] || [ ! -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip" ]; then
+            rm -rf "$RUNNER_TEMP/setup-expanded"
+            mkdir -p "$RUNNER_TEMP/setup-expanded"
+            unzip -q "$RUNNER_TEMP/eaglercraft-26.2-u1-Setup.jar" -d "$RUNNER_TEMP/setup-expanded"
+
+            patch_bundle="$(find "$RUNNER_TEMP/setup-expanded" -type f -name 'source-patch-bundle.zip' -print -quit)"
+            skeleton="$(find "$RUNNER_TEMP/setup-expanded" -type f -name 'project-skeleton-v5-teavm-runtime-verified.zip' -print -quit)"
+
+            if [ -z "$patch_bundle" ]; then
+              echo "ERROR: source-patch-bundle.zip was not found in the installed kit or Setup JAR."
+              find "$RUNNER_TEMP/eaglercraft-patcher" "$RUNNER_TEMP/setup-expanded" -type f | sort | sed -n '1,250p'
+              exit 1
+            fi
+            if [ -z "$skeleton" ]; then
+              echo "ERROR: project-skeleton-v5-teavm-runtime-verified.zip was not found in the installed kit or Setup JAR."
+              find "$RUNNER_TEMP/eaglercraft-patcher" "$RUNNER_TEMP/setup-expanded" -type f | sort | sed -n '1,250p'
+              exit 1
+            fi
+
+            cp "$patch_bundle" "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip"
+            cp "$skeleton" "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip"
+          fi
+
+          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip"
+          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip"
+          echo "Source patch bundle sha256: $(sha256sum "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip" | cut -d ' ' -f1)"
+          echo "Project skeleton sha256: $(sha256sum "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip" | cut -d ' ' -f1)"
+          echo "Verified complete patcher kit and all create-dev inputs."
 
       - name: Verify client input
         run: |
@@ -217,7 +242,12 @@ jobs:
         run: |
           rm -rf "$RUNNER_TEMP/generated-project"
 
-          java -jar "$RUNNER_TEMP/eaglercraft-patcher/eaglercraft-26.2-java-cli.jar"             create-dev             --jar "$GITHUB_WORKSPACE/Input/client.jar"             --output "$RUNNER_TEMP/generated-project"             --vineflower "$RUNNER_TEMP/eaglercraft-patcher/inputs/vineflower-1.12.0.jar"             --java17 "$JAVA_HOME/bin/java"             --resource-overlay "$RUNNER_TEMP/eaglercraft-patcher/inputs/resource-overlay-normal.zip"             --expected-resource-overlay-sha256 2ba7e3376891c64f8bf57f3687e05b8dbe1971a75475b6825449e5e5f96d71f3             --external-resource-root "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources"
+          patch_bundle="$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip"
+          skeleton="$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip"
+          patch_bundle_sha256="$(sha256sum "$patch_bundle" | cut -d ' ' -f1)"
+          skeleton_sha256="$(sha256sum "$skeleton" | cut -d ' ' -f1)"
+
+          java -jar "$RUNNER_TEMP/eaglercraft-patcher/eaglercraft-26.2-java-cli.jar"             create-dev             --jar "$GITHUB_WORKSPACE/Input/client.jar"             --output "$RUNNER_TEMP/generated-project"             --vineflower "$RUNNER_TEMP/eaglercraft-patcher/inputs/vineflower-1.12.0.jar"             --java17 "$JAVA_HOME/bin/java"             --patch-bundle "$patch_bundle"             --expected-bundle-sha256 "$patch_bundle_sha256"             --project-skeleton "$skeleton"             --expected-skeleton-sha256 "$skeleton_sha256"             --resource-overlay "$RUNNER_TEMP/eaglercraft-patcher/inputs/resource-overlay-normal.zip"             --expected-resource-overlay-sha256 2ba7e3376891c64f8bf57f3687e05b8dbe1971a75475b6825449e5e5f96d71f3             --external-resource-root "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources"
 
           test -s "$RUNNER_TEMP/generated-project/receipt.json"
           test -d "$RUNNER_TEMP/generated-project/game/src/main/java"
