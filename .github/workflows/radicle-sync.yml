@@ -23,6 +23,11 @@ jobs:
           echo "$HOME/.radicle/bin" >> "$GITHUB_PATH"
           rad --version
 
+      - name: Initialize Radicle profile
+        run: |
+          export PATH="$HOME/.radicle/bin:$PATH"
+          rad auth --alias "github-actions-bot" --stdin < /dev/null
+
       - name: Clone Radicle repository
         run: |
           export PATH="$HOME/.radicle/bin:$PATH"
