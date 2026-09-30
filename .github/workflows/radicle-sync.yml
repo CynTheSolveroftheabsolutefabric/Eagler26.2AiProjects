@@ -19,11 +19,13 @@ jobs:
       - name: Install Radicle
         run: |
           curl -sSLf https://radicle.xyz/install | sh
+          export PATH="$HOME/.radicle/bin:$PATH"
           echo "$HOME/.radicle/bin" >> "$GITHUB_PATH"
           rad --version
 
       - name: Clone Radicle repository
         run: |
+          export PATH="$HOME/.radicle/bin:$PATH"
           rm -rf radicle-source
           rad clone rad:z2BWVCwcwTyoQ2veMJLb1eFpMtJDj radicle-source
           test -d radicle-source
@@ -36,7 +38,10 @@ jobs:
 
       - name: Mirror Radicle working tree
         run: |
-          rsync -a --delete             --exclude='.git/'             --exclude='.github/workflows/radicle-sync.yml'             radicle-source/ ./
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/workflows/radicle-sync.yml' \
+            radicle-source/ ./
 
       - name: Commit and push changes
         run: |
