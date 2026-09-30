@@ -192,36 +192,17 @@ jobs:
           test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/resource-overlay-normal.zip"
           test -d "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources"
 
-          # The CLI requires the pinned source patch bundle and project
-          # skeleton explicitly. Some Setup JAR revisions keep these files
-          # inside the installer instead of copying them into inputs/.
-          if [ ! -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip" ] || [ ! -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip" ]; then
-            rm -rf "$RUNNER_TEMP/setup-expanded"
-            mkdir -p "$RUNNER_TEMP/setup-expanded"
-            unzip -q "$RUNNER_TEMP/eaglercraft-26.2-u1-Setup.jar" -d "$RUNNER_TEMP/setup-expanded"
+          # The Setup JAR installs these two required create-dev inputs at
+          # the patcher root (not under inputs/).
+          patch_bundle="$RUNNER_TEMP/eaglercraft-patcher/source-patch-bundle.zip"
+          skeleton="$RUNNER_TEMP/eaglercraft-patcher/project-skeleton-v5-teavm-runtime-verified.zip"
 
-            patch_bundle="$(find "$RUNNER_TEMP/setup-expanded" -type f -name 'source-patch-bundle.zip' -print -quit)"
-            skeleton="$(find "$RUNNER_TEMP/setup-expanded" -type f -name 'project-skeleton-v5-teavm-runtime-verified.zip' -print -quit)"
-
-            if [ -z "$patch_bundle" ]; then
-              echo "ERROR: source-patch-bundle.zip was not found in the installed kit or Setup JAR."
-              find "$RUNNER_TEMP/eaglercraft-patcher" "$RUNNER_TEMP/setup-expanded" -type f | sort | sed -n '1,250p'
-              exit 1
-            fi
-            if [ -z "$skeleton" ]; then
-              echo "ERROR: project-skeleton-v5-teavm-runtime-verified.zip was not found in the installed kit or Setup JAR."
-              find "$RUNNER_TEMP/eaglercraft-patcher" "$RUNNER_TEMP/setup-expanded" -type f | sort | sed -n '1,250p'
-              exit 1
-            fi
-
-            cp "$patch_bundle" "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip"
-            cp "$skeleton" "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip"
-          fi
-
-          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip"
-          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip"
-          echo "Source patch bundle sha256: $(sha256sum "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip" | cut -d ' ' -f1)"
-          echo "Project skeleton sha256: $(sha256sum "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip" | cut -d ' ' -f1)"
+          test -s "$patch_bundle"
+          test -s "$skeleton"
+          echo "Source patch bundle: $patch_bundle"
+          echo "Source patch bundle sha256: $(sha256sum "$patch_bundle" | cut -d ' ' -f1)"
+          echo "Project skeleton: $skeleton"
+          echo "Project skeleton sha256: $(sha256sum "$skeleton" | cut -d ' ' -f1)"
           echo "Verified complete patcher kit and all create-dev inputs."
 
       - name: Verify client input
@@ -242,8 +223,8 @@ jobs:
         run: |
           rm -rf "$RUNNER_TEMP/generated-project"
 
-          patch_bundle="$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip"
-          skeleton="$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip"
+          patch_bundle="$RUNNER_TEMP/eaglercraft-patcher/source-patch-bundle.zip"
+          skeleton="$RUNNER_TEMP/eaglercraft-patcher/project-skeleton-v5-teavm-runtime-verified.zip"
           patch_bundle_sha256="$(sha256sum "$patch_bundle" | cut -d ' ' -f1)"
           skeleton_sha256="$(sha256sum "$skeleton" | cut -d ' ' -f1)"
 
