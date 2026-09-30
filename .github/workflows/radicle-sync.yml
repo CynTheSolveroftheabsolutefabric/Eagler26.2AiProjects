@@ -187,32 +187,17 @@ jobs:
 
           java -jar "$RUNNER_TEMP/eaglercraft-26.2-u1-Setup.jar"             --install-dir "$RUNNER_TEMP/eaglercraft-patcher"
 
-          echo "Installed patcher contents:"
-          find "$RUNNER_TEMP/eaglercraft-patcher" -maxdepth 4 -type f -printf '%P\\n' | sort
-          echo "Installed patcher directories:"
-          find "$RUNNER_TEMP/eaglercraft-patcher" -maxdepth 4 -type d -printf '%P/\\n' | sort
+          # Setup intentionally keeps the source-patch bundle and project
+          # skeleton internal to the portable kit. The CLI locates those
+          # pinned inputs from its installation directory; they are not
+          # exposed as standalone ZIP files under inputs/.
+          test -s "$RUNNER_TEMP/eaglercraft-patcher/eaglercraft-26.2-java-cli.jar"
+          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/vineflower-1.12.0.jar"
+          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/resource-overlay-normal.zip"
+          test -d "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources"
 
-          required_files=(
-            "eaglercraft-26.2-java-cli.jar"
-            "inputs/vineflower-1.12.0.jar"
-            "inputs/source-patch-bundle.zip"
-            "inputs/project-skeleton-v5-teavm-runtime-verified.zip"
-            "inputs/resource-overlay-normal.zip"
-          )
-
-          for relative_path in "${required_files[@]}"; do
-            if [ ! -s "$RUNNER_TEMP/eaglercraft-patcher/$relative_path" ]; then
-              echo "::error::Required patcher file is missing or empty: $relative_path"
-              exit 1
-            fi
-            echo "Verified: $relative_path"
-          done
-
-          if [ ! -d "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources" ]; then
-            echo "::error::Required patcher resource directory is missing: inputs/resources"
-            exit 1
-          fi
-          echo "Verified: inputs/resources/"
+          echo "Verified patcher CLI and public inputs."
+          echo "Internal patch bundle and project skeleton are managed automatically by the patcher."
 
       - name: Verify client input
         run: |
@@ -232,7 +217,7 @@ jobs:
         run: |
           rm -rf "$RUNNER_TEMP/generated-project"
 
-          java -jar "$RUNNER_TEMP/eaglercraft-patcher/eaglercraft-26.2-java-cli.jar"             create-dev             --jar "$GITHUB_WORKSPACE/Input/client.jar"             --output "$RUNNER_TEMP/generated-project"             --vineflower "$RUNNER_TEMP/eaglercraft-patcher/inputs/vineflower-1.12.0.jar"             --java17 "$JAVA_HOME/bin/java"             --patch-bundle "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip"             --expected-bundle-sha256 fd944e9cabbebbf4bddce8a39e1b233b3c7d0cd4f860f9cae37550a3fcfa8b02             --project-skeleton "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip"             --expected-skeleton-sha256 3656a83ed8187e2d859612c566f3aa73e242bf1e4633990c5bb4929e0a846c94             --resource-overlay "$RUNNER_TEMP/eaglercraft-patcher/inputs/resource-overlay-normal.zip"             --expected-resource-overlay-sha256 2ba7e3376891c64f8bf57f3687e05b8dbe1971a75475b6825449e5e5f96d71f3             --external-resource-root "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources"
+          java -jar "$RUNNER_TEMP/eaglercraft-patcher/eaglercraft-26.2-java-cli.jar"             create-dev             --jar "$GITHUB_WORKSPACE/Input/client.jar"             --output "$RUNNER_TEMP/generated-project"             --vineflower "$RUNNER_TEMP/eaglercraft-patcher/inputs/vineflower-1.12.0.jar"             --java17 "$JAVA_HOME/bin/java"             --resource-overlay "$RUNNER_TEMP/eaglercraft-patcher/inputs/resource-overlay-normal.zip"             --expected-resource-overlay-sha256 2ba7e3376891c64f8bf57f3687e05b8dbe1971a75475b6825449e5e5f96d71f3             --external-resource-root "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources"
 
           test -s "$RUNNER_TEMP/generated-project/receipt.json"
           test -d "$RUNNER_TEMP/generated-project/game/src/main/java"
