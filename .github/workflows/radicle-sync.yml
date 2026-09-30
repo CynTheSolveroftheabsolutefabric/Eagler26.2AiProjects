@@ -131,6 +131,45 @@ jobs:
             git push origin HEAD:main
           fi
 
+      - name: Install Minecraft 26.2 client into Input
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/Input"
+
+          client_url="https://piston-data.mojang.com/v1/objects/2dc72797acbc1b63fc16a11c4ac393605f453754/client.jar"
+          expected_sha256="40896ee9f1e2bec3c934daac7e93d41e9e3d9c2f8ae0ca366d52ffbfd1afa290"
+          expected_size="39193383"
+
+          echo "Downloading official Minecraft 26.2 client JAR..."
+          curl -fL --retry 5 --retry-delay 2 -o "$GITHUB_WORKSPACE/Input/client.jar.tmp" "$client_url"
+
+          actual_size="$(stat -c '%s' "$GITHUB_WORKSPACE/Input/client.jar.tmp")"
+          actual_sha256="$(sha256sum "$GITHUB_WORKSPACE/Input/client.jar.tmp" | cut -d ' ' -f 1)"
+
+          echo "client.jar size:   $actual_size"
+          echo "client.jar sha256: $actual_sha256"
+
+          test "$actual_size" = "$expected_size"
+          test "$actual_sha256" = "$expected_sha256"
+
+          mv "$GITHUB_WORKSPACE/Input/client.jar.tmp" "$GITHUB_WORKSPACE/Input/client.jar"
+
+          echo "Minecraft 26.2 client installed:"
+          ls -lh "$GITHUB_WORKSPACE/Input/client.jar"
+
+      - name: Commit client input to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add Input/client.jar
+
+          if git diff --cached --quiet; then
+            echo "Input/client.jar is already synchronized."
+          else
+            git commit -m "Install Minecraft 26.2 client input"
+            git push origin HEAD:main
+          fi
+
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
