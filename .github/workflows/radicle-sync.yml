@@ -23,11 +23,9 @@ jobs:
           rad --version
 
       - name: Clone Radicle repository
-        env:
-          RADICLE_RID: rad:z2BWVCwcwTyoQ2veMJLb1eFpMtJDj
         run: |
           rm -rf radicle-source
-          rad clone "$RADICLE_RID" radicle-source
+          rad clone rad:z2BWVCwcwTyoQ2veMJLb1eFpMtJDj radicle-source
           test -d radicle-source
           test -d radicle-source/.git
 
