@@ -187,12 +187,32 @@ jobs:
 
           java -jar "$RUNNER_TEMP/eaglercraft-26.2-u1-Setup.jar"             --install-dir "$RUNNER_TEMP/eaglercraft-patcher"
 
-          test -s "$RUNNER_TEMP/eaglercraft-patcher/eaglercraft-26.2-java-cli.jar"
-          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/vineflower-1.12.0.jar"
-          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/source-patch-bundle.zip"
-          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/project-skeleton-v5-teavm-runtime-verified.zip"
-          test -s "$RUNNER_TEMP/eaglercraft-patcher/inputs/resource-overlay-normal.zip"
-          test -d "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources"
+          echo "Installed patcher contents:"
+          find "$RUNNER_TEMP/eaglercraft-patcher" -maxdepth 4 -type f -printf '%P\\n' | sort
+          echo "Installed patcher directories:"
+          find "$RUNNER_TEMP/eaglercraft-patcher" -maxdepth 4 -type d -printf '%P/\\n' | sort
+
+          required_files=(
+            "eaglercraft-26.2-java-cli.jar"
+            "inputs/vineflower-1.12.0.jar"
+            "inputs/source-patch-bundle.zip"
+            "inputs/project-skeleton-v5-teavm-runtime-verified.zip"
+            "inputs/resource-overlay-normal.zip"
+          )
+
+          for relative_path in "${required_files[@]}"; do
+            if [ ! -s "$RUNNER_TEMP/eaglercraft-patcher/$relative_path" ]; then
+              echo "::error::Required patcher file is missing or empty: $relative_path"
+              exit 1
+            fi
+            echo "Verified: $relative_path"
+          done
+
+          if [ ! -d "$RUNNER_TEMP/eaglercraft-patcher/inputs/resources" ]; then
+            echo "::error::Required patcher resource directory is missing: inputs/resources"
+            exit 1
+          fi
+          echo "Verified: inputs/resources/"
 
       - name: Verify client input
         run: |
