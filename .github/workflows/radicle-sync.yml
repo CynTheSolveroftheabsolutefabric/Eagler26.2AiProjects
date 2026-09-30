@@ -1,0 +1,57 @@
+name: Sync from Radicle
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radicle-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Radicle
+        run: |
+          curl -sSLf https://radicle.xyz/install | sh
+          echo "$HOME/.radicle/bin" >> "$GITHUB_PATH"
+
+      - name: Clone Radicle repository
+        env:
+          RADICLE_URL: rad://radicle.jarg.io/z2BWVCwcwTyoQ2veMJLb1eFpMtJDj
+        run: |
+          rm -rf radicle-source
+          rad clone "$RADICLE_URL" radicle-source
+          test -d radicle-source
+
+      - name: Check out GitHub repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mirror Radicle working tree
+        run: |
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/workflows/radicle-sync.yml' \
+            radicle-source/ ./
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Radicle repository is already synchronized."
+            exit 0
+          fi
+
+          git commit -m "Sync workspace from Radicle"
+          git push origin HEAD:main
