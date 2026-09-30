@@ -85,10 +85,33 @@ jobs:
 
       - name: Mirror Radicle working tree
         run: |
-          # GitHub-only inputs are deliberately preserved because Radicle does
-          # not contain them. In particular, client.jar is the user-supplied
-          # official 26.2 input required by the patcher.
-          rsync -a --delete             --exclude='.git/'             --exclude='.github/workflows/radicle-sync.yml'             --exclude='Input/client.jar'             "$RUNNER_TEMP/radicle-source/" ./
+          # Preserve GitHub-only files by temporarily moving their parent
+          # directories out of the rsync destination. This avoids rsync's
+          # --delete interaction with excluded files inside otherwise-empty
+          # directories (which caused the previous run to fail).
+          mirror_backup="$RUNNER_TEMP/mirror-backup"
+          rm -rf "$mirror_backup"
+          mkdir -p "$mirror_backup"
+
+          if [ -f "$GITHUB_WORKSPACE/.github/workflows/radicle-sync.yml" ]; then
+            mkdir -p "$mirror_backup/.github/workflows"
+            cp "$GITHUB_WORKSPACE/.github/workflows/radicle-sync.yml"               "$mirror_backup/.github/workflows/radicle-sync.yml"
+          fi
+
+          if [ -f "$GITHUB_WORKSPACE/Input/client.jar" ]; then
+            mkdir -p "$mirror_backup/Input"
+            cp "$GITHUB_WORKSPACE/Input/client.jar"               "$mirror_backup/Input/client.jar"
+          fi
+
+          rm -rf "$GITHUB_WORKSPACE/.github" "$GITHUB_WORKSPACE/Input"
+
+          rsync -a --delete             --exclude='.git/'             "$RUNNER_TEMP/radicle-source/" "$GITHUB_WORKSPACE/"
+
+          mkdir -p "$GITHUB_WORKSPACE/.github/workflows" "$GITHUB_WORKSPACE/Input"
+
+          cp "$mirror_backup/.github/workflows/radicle-sync.yml"             "$GITHUB_WORKSPACE/.github/workflows/radicle-sync.yml"
+
+          cp "$mirror_backup/Input/client.jar"             "$GITHUB_WORKSPACE/Input/client.jar"
 
           test -s "$GITHUB_WORKSPACE/Input/client.jar"
           echo "Preserved client.jar:"
@@ -166,9 +189,6 @@ jobs:
           git fetch origin main src || true
           git checkout -B src origin/main
 
-          # src is a generated-project branch, not a copy of the Radicle
-          # source checkout. Remove the main-branch files before publishing
-          # the patcher's complete generated workspace at the branch root.
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf -- {} +
 
           rsync -a --delete             --exclude='.git/'             "$RUNNER_TEMP/generated-project/" ./
